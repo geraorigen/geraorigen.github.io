@@ -5,7 +5,9 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Mapa Interactivo — Mejores Lugares para Bucear en México</title>
 
+  <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
   <style>
     :root{
       --flag-red: #FF0000;
@@ -19,11 +21,16 @@
       background: linear-gradient(180deg,var(--bg-dark),#012026);
       color:var(--white);
       font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+      -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
     }
+
+    /* Layout */
     .container{display:flex;gap:18px;height:100vh;padding:18px;box-sizing:border-box}
     .panel{width:380px;max-width:42%;background:var(--panel-bg);border-radius:12px;padding:16px;box-shadow:0 8px 30px rgba(0,0,0,0.45);overflow:auto}
     .map-wrap{flex:1;border-radius:12px;overflow:hidden;box-shadow:0 8px 30px rgba(0,0,0,0.45);position:relative}
     #map{position:absolute;inset:0;height:100%;width:100%}
+
     h1{font-size:18px;margin:0 0 6px 0;color:var(--white)}
     .meta{font-size:13px;opacity:0.9;margin-bottom:12px}
     .search{width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.06);background:transparent;color:var(--white);margin-bottom:10px}
@@ -39,6 +46,7 @@
     .credits{font-size:12px;opacity:0.8;margin-top:8px}
     .legend{margin-top:12px;padding:8px;border-radius:8px;background:rgba(255,255,255,0.02);font-size:13px}
     .legend b{color:var(--flag-red)}
+
     @media(max-width:900px){
       .container{flex-direction:column;padding:12px}
       .panel{width:100%;max-height:36vh}
@@ -49,13 +57,13 @@
 </head>
 <body>
   <div class="container">
-    <div class="panel">
+    <div class="panel" aria-label="Panel lateral">
       <h1>Mapa Interactivo — Buceo en México</h1>
-      <div class="meta">Haz clic en un marcador o ficha para ver la información detallada.</div>
+      <div class="meta">Colores: <span style="color:var(--flag-red);font-weight:700">Rojo</span> y blanco — bandera de buceo. Haz clic en un marcador o ficha para ver la ficha completa.</div>
 
-      <input id="search" class="search" placeholder="Buscar sitio, región o tipo..." />
+      <input id="search" class="search" placeholder="Buscar sitio, región o tipo..." aria-label="Buscar sitios" />
 
-      <div class="filters">
+      <div class="filters" role="toolbar" aria-label="Filtros por región">
         <button class="btn active" data-filter="all">Todos</button>
         <button class="btn" data-filter="Caribe">Caribe</button>
         <button class="btn" data-filter="Pacífico">Pacífico</button>
@@ -65,21 +73,68 @@
         <button class="btn" data-filter="Volcanes">Volcanes</button>
       </div>
 
-      <div id="list"></div>
-      <div class="legend"><b>Filtrar</b> por región o buscar por nombre o tipo.</div>
-      <div class="credits">Imágenes genéricas de archivo (picsum.photos). Puedes reemplazarlas por tus propias fotos.</div>
+      <div id="list" aria-live="polite"></div>
+
+      <div class="legend">
+        <div><b>Filtrar</b> por región, usar la búsqueda para encontrar por nombre o tipo.</div>
+      </div>
+
+      <div class="credits">Miniaturas fijas (imágenes de buceo de archivo). Reemplaza las URLs por tus fotos si lo prefieres.</div>
     </div>
 
-    <div class="map-wrap"><div id="map"></div></div>
+    <div class="map-wrap" role="region" aria-label="Mapa interactivo">
+      <div id="map"></div>
+    </div>
   </div>
 
+  <!-- Leaflet JS -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
   <script>
+    /* ---------------------------
+       LISTADO: 37 originales + 30 añadidos = 67 sitios
+       --------------------------- */
+
     const SITES = [
-      // --- Tus 37 originales aquí (sin cambios) ---
-      // ... (se mantienen idénticos al código que enviaste)
-      // --- NUEVOS 30 SITIOS AÑADIDOS ---
+      {id:1,name:'Cozumel',region:'Caribe',type:'Arrecife',difficulty:'Intermedio',best:'Ene-Dic',lat:20.42298,lng:-86.92234,desc:'Barrera arrecifal mesoamericana; visibilidad excepcional.',img:'https://picsum.photos/id/1016/600/400'},
+      {id:2,name:'Isla Mujeres',region:'Caribe',type:'Pelágicos / MUSA',difficulty:'Intermedio',best:'Oct-Abr',lat:21.2310,lng:-86.7316,desc:'Museo Subacuático de Arte y encuentros con tiburones gata.',img:'https://picsum.photos/id/1018/600/400'},
+      {id:3,name:'Cancún',region:'Caribe',type:'Turístico / Museo',difficulty:'Principiante',best:'Ene-Dic',lat:21.1619,lng:-86.8515,desc:'MUSA y arrecifes accesibles.',img:'https://picsum.photos/id/1025/600/400'},
+      {id:4,name:'Playa del Carmen',region:'Caribe',type:'Pelágicos',difficulty:'Intermedio-Avanzado',best:'Nov-Mar',lat:20.6296,lng:-87.0739,desc:'Buena temporada de bull sharks (nov-mar).',img:'https://picsum.photos/id/1035/600/400'},
+      {id:5,name:'Mahahual',region:'Caribe',type:'Arrecife',difficulty:'Principiante-Intermedio',best:'Nov-Jun',lat:18.7087,lng:-87.7082,desc:'Arrecifes prístinos y menos concurridos.',img:'https://picsum.photos/id/1041/600/400'},
+      {id:6,name:'Banco Chinchorro',region:'Caribe',type:'Atolón / Naufragios',difficulty:'Intermedio',best:'Nov-May',lat:18.6072,lng:-87.6350,desc:'Atolón remoto con naufragios y vida marina.',img:'https://picsum.photos/id/1050/600/400'},
+      {id:7,name:'Akumal',region:'Caribe',type:'Tortugas',difficulty:'Principiante',best:'Ene-Dic',lat:20.3574,lng:-87.3084,desc:'Conocido por las tortugas verdes.',img:'https://picsum.photos/id/1060/600/400'},
+      {id:8,name:'Tulum (Cenotes)',region:'Cenotes',type:'Cenotes / Cavernas',difficulty:'Cueva (cert.)',best:'Ene-Dic',lat:20.2110,lng:-87.4650,desc:'Sistemas de cuevas y luz cenital.',img:'https://picsum.photos/id/1068/600/400'},
+      {id:9,name:'Cenote Dos Ojos',region:'Cenotes',type:'Cenote',difficulty:'Caverna',best:'Ene-Dic',lat:20.3830,lng:-87.3540,desc:'Sistema de cavernas famoso.',img:'https://picsum.photos/id/1072/600/400'},
+      {id:10,name:'Cenote Angelita',region:'Cenotes',type:'Cenote',difficulty:'Intermedio-Avanzado',best:'Ene-Dic',lat:20.3087,lng:-87.3826,desc:'Efecto de capa de sulfuro.',img:'https://picsum.photos/id/1084/600/400'},
+      {id:11,name:'Gran Cenote',region:'Cenotes',type:'Cenote',difficulty:'Principiante-Intermedio',best:'Ene-Dic',lat:20.3270,lng:-87.5450,desc:'Accesible y visualmente impresionante.',img:'https://picsum.photos/id/1080/600/400'},
+      {id:12,name:'Cenote The Pit',region:'Cenotes',type:'Cenote',difficulty:'Avanzado',best:'Ene-Dic',lat:20.2730,lng:-87.4620,desc:'Profundo y espectacular.',img:'https://picsum.photos/id/1096/600/400'},
+      {id:13,name:'Puerto Morelos',region:'Caribe',type:'Arrecife',difficulty:'Principiante',best:'Ene-Dic',lat:20.8260,lng:-86.8723,desc:'Parque Nacional Arrecifes.',img:'https://picsum.photos/id/1100/600/400'},
+      {id:14,name:'Isla Contoy',region:'Caribe',type:'Reserva / Arrecife',difficulty:'Principiante-Intermedio',best:'Nov-May',lat:21.4510,lng:-86.8660,desc:'Reserva protegida con arrecifes prístinos.',img:'https://picsum.photos/id/1108/600/400'},
+      {id:15,name:'Cenote Calavera',region:'Cenotes',type:'Caverna',difficulty:'Intermedio',best:'Ene-Dic',lat:20.2118,lng:-87.4323,desc:'Entrada característica; experiencia vibrante.',img:'https://picsum.photos/id/1116/600/400'},
+      {id:16,name:'Cabo Pulmo',region:'Pacífico',type:'Arrecife',difficulty:'Intermedio',best:'Nov-May',lat:23.4488,lng:-109.3996,desc:'Único arrecife vivo del Pacífico.',img:'https://picsum.photos/id/1124/600/400'},
+      {id:17,name:'Archipiélago de Revillagigedo (Socorro)',region:'Pacífico',type:'Pelágicos',difficulty:'Avanzado',best:'Nov-May',lat:18.8394,lng:-112.9066,desc:'Pelágicos grandes: mantas y tiburones martillo.',img:'https://picsum.photos/id/1136/600/400'},
+      {id:18,name:'Isla Guadalupe',region:'Pacífico',type:'Jaula / Tiburones',difficulty:'Avanzado',best:'Ago-Nov',lat:29.1000,lng:-118.3000,desc:'Buceo en jaula con tiburones blancos.',img:'https://picsum.photos/id/1140/600/400'},
+      {id:19,name:'Bahía de los Ángeles',region:'Pacífico',type:'Pelágicos',difficulty:'Intermedio',best:'Jul-Sep',lat:28.9540,lng:-113.5600,desc:'Avistamiento de tiburón ballena y fauna rica.',img:'https://picsum.photos/id/1150/600/400'},
+      {id:20,name:'La Paz',region:'Pacífico',type:'Fauna / Lobos Marinos',difficulty:'Principiante-Intermedio',best:'Oct-May',lat:24.1426,lng:-110.3106,desc:'Lobos marinos y mantarrayas.',img:'https://picsum.photos/id/1160/600/400'},
+      {id:21,name:'Cabo San Lucas',region:'Pacífico',type:'Arrecife / Pelágicos',difficulty:'Intermedio',best:'Nov-Mar',lat:22.8894,lng:-109.9167,desc:'Formaciones rocosas y vida pelágica.',img:'https://picsum.photos/id/1170/600/400'},
+      {id:22,name:'Loreto',region:'Pacífico',type:'Parque Marino',difficulty:'Intermedio',best:'Oct-May',lat:26.0112,lng:-111.3439,desc:'Parque Nacional Marino con rica biodiversidad.',img:'https://picsum.photos/id/1180/600/400'},
+      {id:23,name:'Puerto Vallarta',region:'Pacífico',type:'Arrecife',difficulty:'Principiante-Intermedio',best:'Nov-Jun',lat:20.6534,lng:-105.2253,desc:'Buceo accesible y vida marina diversa.',img:'https://picsum.photos/id/1190/600/400'},
+      {id:24,name:'Islas Marietas',region:'Pacífico',type:'Rocas / Cuevas',difficulty:'Principiante-Intermedio',best:'Nov-May',lat:20.7098,lng:-105.5049,desc:'Formaciones rocosas y biodiversidad marina.',img:'https://picsum.photos/id/1200/600/400'},
+      {id:25,name:'Manzanillo',region:'Pacífico',type:'Naufragios',difficulty:'Intermedio',best:'Nov-May',lat:19.0550,lng:-104.3167,desc:'Naufragios y vida pelágica.',img:'https://picsum.photos/id/1210/600/400'},
+      {id:26,name:'Huatulco',region:'Pacífico',type:'Bahías Protegidas',difficulty:'Principiante-Intermedio',best:'Nov-May',lat:15.8470,lng:-96.1350,desc:'Bahías con corales blandos y peces.',img:'https://picsum.photos/id/1220/600/400'},
+      {id:27,name:'Zihuatanejo / Ixtapa',region:'Pacífico',type:'Arrecifes',difficulty:'Principiante-Intermedio',best:'Nov-May',lat:17.6400,lng:-101.5480,desc:'Arrecifes tranquilos y tortugas.',img:'https://picsum.photos/id/1230/600/400'},
+      {id:28,name:'Isla Isabel',region:'Pacífico',type:'Arrecife',difficulty:'Intermedio',best:'Nov-May',lat:21.8810,lng:-105.2210,desc:'Isla volcánica con arrecifes y aves marinas.',img:'https://picsum.photos/id/1240/600/400'},
+      {id:29,name:'Mazatlán',region:'Pacífico',type:'Naufragios',difficulty:'Intermedio',best:'Nov-May',lat:23.2494,lng:-106.4111,desc:'Naufragios y fauna del Pacífico.',img:'https://picsum.photos/id/1250/600/400'},
+      {id:30,name:'Bahía Magdalena',region:'Pacífico',type:'Ballenas / Observación',difficulty:'Principiante',best:'Feb-Apr',lat:24.5000,lng:-112.0000,desc:'Ballenas grises y snorkel con fauna.',img:'https://picsum.photos/id/1260/600/400'},
+      {id:31,name:'Sistema Arrecifal Veracruzano',region:'Golfo',type:'Arrecife',difficulty:'Intermedio',best:'Nov-May',lat:19.1650,lng:-96.1400,desc:'Arrecifes frente a Veracruz: buena visibilidad y vida marina.',img:'https://picsum.photos/id/1270/600/400'},
+      {id:32,name:'Isla de Sacrificios (Veracruz)',region:'Golfo',type:'Isla / Arrecife',difficulty:'Intermedio',best:'Nov-May',lat:19.1400,lng:-96.1600,desc:'Accesible desde Veracruz, biodiversidad marina local.',img:'https://picsum.photos/id/1280/600/400'},
+      {id:33,name:'Isla de Enmedio (Veracruz)',region:'Golfo',type:'Isla / Arrecife',difficulty:'Intermedio',best:'Nov-May',lat:18.9000,lng:-95.8000,desc:'Playas e inmersiones tranquilas en el Golfo.',img:'https://picsum.photos/id/1290/600/400'},
+      {id:34,name:'Alvarado (Veracruz)',region:'Golfo',type:'Estuario / Arrecife',difficulty:'Principiante-Intermedio',best:'Nov-Jun',lat:18.7460,lng:-95.7990,desc:'Entrada mexicana con inmersiones en estuarios y arrecifes cercanos.',img:'https://picsum.photos/id/1300/600/400'},
+      {id:35,name:'Boca del Río (Veracruz)',region:'Golfo',type:'Arrecife',difficulty:'Principiante-Intermedio',best:'Nov-May',lat:19.1500,lng:-96.1300,desc:'Cerca de Veracruz, sitios de inmersión locales.',img:'https://picsum.photos/id/1310/600/400'},
+      {id:36,name:'Coatzacoalcos (Veracruz)',region:'Golfo',type:'Arrecife / Costero',difficulty:'Intermedio',best:'Nov-May',lat:18.1470,lng:-94.4280,desc:'Buceo en la costa sur de Veracruz con vida marina de plataforma.',img:'https://picsum.photos/id/1320/600/400'},
+      {id:37,name:'Sistema Arrecifal La Antigua',region:'Golfo',type:'Arrecife',difficulty:'Intermedio',best:'Nov-May',lat:19.3000,lng:-96.5000,desc:'Arrecifes y bancos frente a la región de Veracruz/La Antigua.',img:'https://picsum.photos/id/1330/600/400'},
+
+      /* ----- 30 Nuevos sitios añadidos ----- */
       {id:38,name:'Acapulco',region:'Pacífico',type:'Bahía / Arrecife',difficulty:'Principiante',best:'Nov-May',lat:16.8531,lng:-99.8237,desc:'Sitios clásicos como La Quebrada y La Roqueta.',img:'https://picsum.photos/id/1350/600/400'},
       {id:39,name:'Maruata (Michoacán)',region:'Pacífico',type:'Arrecife / Roca',difficulty:'Intermedio',best:'Nov-May',lat:18.274,lng:-103.369,desc:'Paredes rocosas y vida abundante.',img:'https://picsum.photos/id/1355/600/400'},
       {id:40,name:'Playa Azul (Michoacán)',region:'Pacífico',type:'Costero',difficulty:'Principiante',best:'Nov-May',lat:17.984,lng:-102.302,desc:'Zona tranquila con fauna costera.',img:'https://picsum.photos/id/1360/600/400'},
@@ -112,8 +167,95 @@
       {id:67,name:'Laguna de Términos',region:'Golfo',type:'Laguna / Costera',difficulty:'Principiante',best:'Ene-Dic',lat:18.64,lng:-92.28,desc:'Ecosistema costero con manglares y fauna marina.',img:'https://picsum.photos/id/1495/600/400'}
     ];
 
-    const map = L.map('map').setView([23.5,-102.5],5);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:18,attribution:'© OpenStreetMap'}).addTo(map);
+    // Initialize map (center of Mexico)
+    const map = L.map('map', { zoomControl:true, preferCanvas:true }).setView([23.6345, -102.5528], 5);
 
+    // Tiles
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 18,
+      attribution: '© OpenStreetMap contributors'
+    }).addTo(map);
+
+    // Marker storage and list builder
     const markers = [];
-   
+    const listEl = document.getElementById('list');
+
+    SITES.forEach(site => {
+      // marker with small custom icon color (circle style using DivIcon)
+      const iconHtml = `<svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="${'#FF0000'}" stroke="#fff" stroke-width="2"/></svg>`;
+      const icon = L.divIcon({ html: iconHtml, className: '', iconSize: [26,26], iconAnchor: [13,13] });
+
+      const marker = L.marker([site.lat, site.lng], {icon: icon}).addTo(map);
+      const popupHtml = `
+        <div class="popup-card" role="dialog" aria-label="${site.name} ficha">
+          <img src="${site.img}" alt="${site.name} miniatura" />
+          <strong style="font-size:15px;color:${'#FF0000'}">${site.name}</strong>
+          <div class="meta-small">${site.region} • ${site.type}</div>
+          <div class="meta-small">Dificultad: ${site.difficulty} • Mejores: ${site.best}</div>
+          <p style="margin-top:8px;font-size:13px;color:#eef">${site.desc}</p>
+        </div>
+      `;
+      marker.bindPopup(popupHtml, {maxWidth:340});
+      markers.push({marker,site});
+
+      // list item
+      const item = document.createElement('div');
+      item.className = 'site-item';
+      item.tabIndex = 0;
+      item.innerHTML = `<strong style="color:${'#FF0000'}">${site.name}</strong><div class="meta-small">${site.region} • ${site.type}</div><img class="thumb" src="${site.img}" alt="${site.name}">`;
+      item.addEventListener('click', () => {
+        map.setView([site.lat, site.lng], 9, {animate:true});
+        marker.openPopup();
+      });
+      item.addEventListener('keypress', (e) => { if(e.key==='Enter') item.click(); });
+      item.dataset.region = site.region;
+      item.dataset.name = site.name.toLowerCase();
+      item.dataset.type = site.type.toLowerCase();
+      listEl.appendChild(item);
+    });
+
+    // Fit map to markers
+    const markerGroup = L.featureGroup(markers.map(m=>m.marker));
+    if (markers.length === 1) map.setView(markers[0].marker.getLatLng(), 8);
+    else map.fitBounds(markerGroup.getBounds().pad(0.18));
+
+    // Filters (region)
+    document.querySelectorAll('.btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.btn').forEach(b=>b.classList.remove('active'));
+        btn.classList.add('active');
+        const f = btn.dataset.filter;
+        document.querySelectorAll('.site-item').forEach(i => {
+          if (f === 'all') i.style.display = 'block';
+          else i.style.display = (i.dataset.region === f) ? 'block' : 'none';
+        });
+      });
+    });
+
+    // Search
+    document.getElementById('search').addEventListener('input', e => {
+      const q = e.target.value.trim().toLowerCase();
+      document.querySelectorAll('.site-item').forEach(i => {
+        const matches = i.dataset.name.includes(q) || i.dataset.type.includes(q);
+        i.style.display = (q === '' || matches) ? 'block' : 'none';
+      });
+    });
+
+    // Disable scroll zoom for embed friendliness; enable with Ctrl+wheel
+    map.scrollWheelZoom.disable();
+    map.getContainer().addEventListener('wheel', function(e){
+      if (e.ctrlKey) map.scrollWheelZoom.enable();
+    });
+
+    // Important: ensure proper rendering in iframes/Canva - invalidate size
+    function ensureMapRenders(){
+      setTimeout(()=>{ try{ map.invalidateSize(); } catch(e){} }, 200);
+      setTimeout(()=>{ try{ map.invalidateSize(); } catch(e){} }, 800);
+    }
+    window.addEventListener('load', ensureMapRenders);
+    window.addEventListener('orientationchange', ensureMapRenders);
+    // Also attempt a periodic invalidate shortly after load (useful for some embed environments)
+    setTimeout(ensureMapRenders, 1200);
+  </script>
+</body>
+</html>
