@@ -1,0 +1,346 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Mapa Interactivo — Mejores Lugares para Bucear en México</title>
+
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+  <style>
+    :root{
+      --flag-red:#FF0000;
+      --white:#ffffff;
+      --bg-dark:#001219;
+      --panel-bg:rgba(255,255,255,0.03);
+      --card-bg:rgba(255,255,255,0.04);
+    }
+
+    html,body{height:100%;margin:0}
+    body{
+      background: linear-gradient(180deg,var(--bg-dark),#012026);
+      color:var(--white);
+      font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+      -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
+    }
+
+    /* Layout */
+    .container{display:flex;gap:18px;height:100vh;padding:18px;box-sizing:border-box}
+    .panel{width:380px;max-width:42%;background:var(--panel-bg);border-radius:12px;padding:16px;box-shadow:0 8px 30px rgba(0,0,0,0.45);overflow:auto}
+    .map-wrap{flex:1;border-radius:12px;overflow:hidden;box-shadow:0 8px 30px rgba(0,0,0,0.45);position:relative}
+    #map{position:absolute;inset:0;height:100%;width:100%}
+
+    h1{font-size:18px;margin:0 0 6px 0;color:var(--white)}
+    .meta{font-size:13px;opacity:0.9;margin-bottom:12px}
+    .search{width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.06);background:transparent;color:var(--white);margin-bottom:10px}
+    .filters{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+    .btn{background:transparent;border:1px solid rgba(255,255,255,0.08);color:var(--white);padding:7px 10px;border-radius:8px;cursor:pointer;font-size:13px}
+    .btn.active{background:var(--flag-red);color:var(--white);border-color:var(--flag-red)}
+    .site-item{padding:10px;border-radius:10px;margin-bottom:10px;background:var(--card-bg);border:1px solid rgba(255,255,255,0.03);cursor:pointer;transition:transform .15s,box-shadow .15s}
+    .site-item:hover{transform:translateY(-3px);box-shadow:0 10px 30px rgba(0,0,0,0.45)}
+    .thumb{width:100%;height:auto;border-radius:6px;margin-top:8px;padding:6px;background:rgba(255,255,255,0.02);font-size:13px}
+    .meta-small{font-size:12px;opacity:0.9}
+    .popup-card{width:320px}
+    .popup-card .mini-resena{font-size:13px;color:#eef;line-height:1.3}
+    .credits{font-size:12px;opacity:0.8;margin-top:8px}
+    .legend{margin-top:12px;padding:8px;border-radius:8px;background:rgba(255,255,255,0.02);font-size:13px}
+    .legend b{color:var(--flag-red)}
+
+    @media(max-width:900px){
+      .container{flex-direction:column;padding:12px}
+      .panel{width:100%;max-height:36vh}
+      .map-wrap{height:64vh}
+      #map{position:relative}
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="panel" aria-label="Panel lateral">
+      <h1>Mapa Interactivo — Buceo en México</h1>
+      <div class="meta">Haz clic en un marcador o ficha para ver la reseña. (Texto en lugar de miniaturas)</div>
+
+      <input id="search" class="search" placeholder="Buscar sitio, región o tipo..." aria-label="Buscar sitios" />
+
+      <div class="filters" role="toolbar" aria-label="Filtros por región">
+        <button class="btn active" data-filter="all">Todos</button>
+        <button class="btn" data-filter="Caribe">Caribe</button>
+        <button class="btn" data-filter="Pacífico">Pacífico</button>
+        <button class="btn" data-filter="Cenotes">Cenotes</button>
+        <button class="btn" data-filter="Golfo">Golfo</button>
+      </div>
+
+      <div id="list" aria-live="polite"></div>
+
+      <div class="legend">
+        <div><b>Filtrar</b> por región o usar la búsqueda para encontrar por nombre o tipo.</div>
+        <div style="margin-top:6px">Inserta en Canva: <span style="color:var(--flag-red);font-weight:700">Embed → URL</span> y pega la URL pública (GitHub Pages / Netlify).</div>
+      </div>
+
+      <div class="credits">Las fichas muestran una reseña corta (texto). Si luego quieres fotos reales, las añadimos manualmente.</div>
+    </div>
+
+    <div class="map-wrap" role="region" aria-label="Mapa interactivo">
+      <div id="map"></div>
+    </div>
+  </div>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <script>
+    /* ---------------------------
+       LISTADO: 37 sitios originales + 30 nuevos = 67
+       Ahora las fichas y listados muestran mini-resenas en texto en vez de fotos.
+       --------------------------- */
+
+    const SITES = [
+      // 37 existentes (preservadas)
+      {id:1,name:'Cozumel',region:'Caribe',type:'Arrecife',difficulty:'Intermedio',best:'Ene-Dic',lat:20.42298,lng:-86.92234, shortResena:[
+        'Es parte de la Barrera Arrecifal Mesoamericana; visibilidad excelente. • Buceo México',
+        'Vida marina variada: corales, peces tropicales, tortugas. • SeaCrush',
+        'Ideal para todos los niveles; paredes y derivas.']},
+      {id:2,name:'Isla Mujeres',region:'Caribe',type:'Pelágicos / MUSA',difficulty:'Intermedio',best:'Oct-Abr',lat:21.2310,lng:-86.7316,shortResena:[
+        'Museo Subacuático de Arte (MUSA) y zonas de pelágicos. • Buceo México',
+        'Buena visibilidad y sitio turístico para combinaciones.']},
+      {id:3,name:'Cancún',region:'Caribe',type:'Turístico / Museo',difficulty:'Principiante',best:'Ene-Dic',lat:21.1619,lng:-86.8515,shortResena:[
+        'MUSA y arrecifes accesibles para principiantes. • Buceo México',
+        'Combinación de buceo y turismo, fácil logística.']},
+      {id:4,name:'Playa del Carmen',region:'Caribe',type:'Pelágicos',difficulty:'Intermedio-Avanzado',best:'Nov-Mar',lat:20.6296,lng:-87.0739,shortResena:[
+        'Conocido por inmersiones con bull sharks en temporada. • Buceo México',
+        'Buena oferta de centros de buceo y combinaciones.']},
+      {id:5,name:'Mahahual',region:'Caribe',type:'Arrecife',difficulty:'Principiante-Intermedio',best:'Nov-Jun',lat:18.7087,lng:-87.7082,shortResena:[
+        'Arrecifes prístinos y menos concurridos. • Buceo México',
+        'Perfecto si buscas tranquilidad y buena vida marina.']},
+      {id:6,name:'Banco Chinchorro',region:'Caribe',type:'Atolón / Naufragios',difficulty:'Intermedio',best:'Nov-May',lat:18.6072,lng:-87.6350,shortResena:[
+        'Atolón remoto con naufragios históricos y praderas coralinas. • Bluewater',
+        'Requiere logística por ser remoto; excelente para exploración.']},
+      {id:7,name:'Akumal',region:'Caribe',type:'Tortugas',difficulty:'Principiante',best:'Ene-Dic',lat:20.3574,lng:-87.3084,shortResena:[
+        'Famoso por tortugas verdes y aguas tranquilas. • Buceo México',
+        'Ideal para snorkel y buceadores novatos.']},
+      {id:8,name:'Tulum (Cenotes)',region:'Cenotes',type:'Cenotes / Cavernas',difficulty:'Cueva (cert.)',best:'Ene-Dic',lat:20.2110,lng:-87.4650,shortResena:[
+        'Sistema de cuevas con luz cenital y formaciones. • Buceo México',
+        'Requiere certificación de cuevas para explorar profundamente.']},
+      {id:9,name:'Cenote Dos Ojos',region:'Cenotes',type:'Cenote',difficulty:'Caverna',best:'Ene-Dic',lat:20.3830,lng:-87.3540,shortResena:[
+        'Uno de los sistemas subterráneos más extensos y famosos.',
+        'Paisajes de estalactitas y visibilidad interior excelente.']},
+      {id:10,name:'Cenote Angelita',region:'Cenotes',type:'Cenote',difficulty:'Intermedio-Avanzado',best:'Ene-Dic',lat:20.3087,lng:-87.3826,shortResena:[
+        'Capa de sulfuro crea un efecto visual de "río" subacuático.',
+        'Experiencia única, suele ser recomendada para buzos avanzados.']},
+      {id:11,name:'Gran Cenote',region:'Cenotes',type:'Cenote',difficulty:'Principiante-Intermedio',best:'Ene-Dic',lat:20.3270,lng:-87.5450,shortResena:[
+        'Accesible, claro, perfecto para combinaciones de foto y buceo.']},
+      {id:12,name:'Cenote The Pit',region:'Cenotes',type:'Cenote',difficulty:'Avanzado',best:'Ene-Dic',lat:20.2730,lng:-87.4620,shortResena:[
+        'Muy profundo con columnas luminosas; para buzos experimentados.']},
+      {id:13,name:'Puerto Morelos',region:'Caribe',type:'Arrecife',difficulty:'Principiante',best:'Ene-Dic',lat:20.8260,lng:-86.8723,shortResena:[
+        'Parque Nacional Arrecifes; ideal para aprender y practicar.']},
+      {id:14,name:'Isla Contoy',region:'Caribe',type:'Reserva / Arrecife',difficulty:'Principiante-Intermedio',best:'Nov-May',lat:21.4510,lng:-86.8660,shortResena:[
+        'Reserva protegida con buena conservación marina.']},
+      {id:15,name:'Cenote Calavera',region:'Cenotes',type:'Caverna',difficulty:'Intermedio',best:'Ene-Dic',lat:20.2118,lng:-87.4323,shortResena:[
+        'Entrada singular y formaciones sorprendentes; experiencia intensa.']},
+      {id:16,name:'Cabo Pulmo',region:'Pacífico',type:'Arrecife',difficulty:'Intermedio',best:'Nov-May',lat:23.4488,lng:-109.3996,shortResena:[
+        'Es el único arrecife de coral vivo en la costa oeste de América del Norte. • Buceo México',
+        'Vida marina abundante: bancos de peces, tortugas, tiburones, etc. • SeaCrush',
+        'Muy buena opción para quienes quieren naturaleza “salvaje” en el Pacífico mexicano.']},
+      {id:17,name:'Archipiélago de Revillagigedo (Socorro)',region:'Pacífico',type:'Pelágicos',difficulty:'Avanzado',best:'Nov-May',lat:18.8394,lng:-112.9066,shortResena:[
+        'Expedición en liveaboard; mantas gigantes y grandes pelágicos.']},
+      {id:18,name:'Isla Guadalupe',region:'Pacífico',type:'Jaula / Tiburones',difficulty:'Avanzado',best:'Ago-Nov',lat:29.1000,lng:-118.3000,shortResena:[
+        'Famosa por el buceo en jaula con tiburones blancos.']},
+      {id:19,name:'Bahía de los Ángeles',region:'Pacífico',type:'Pelágicos',difficulty:'Intermedio',best:'Jul-Sep',lat:28.9540,lng:-113.5600,shortResena:[
+        'Buena para avistamiento de grandes pelágicos y tranquilidad.']},
+      {id:20,name:'La Paz',region:'Pacífico',type:'Fauna / Lobos Marinos',difficulty:'Principiante-Intermedio',best:'Oct-May',lat:24.1426,lng:-110.3106,shortResena:[
+        'Lobos marinos juguetones y sitios de snorkel y buceo.']},
+      {id:21,name:'Cabo San Lucas',region:'Pacífico',type:'Arrecife / Pelágicos',difficulty:'Intermedio',best:'Nov-Mar',lat:22.8894,lng:-109.9167,shortResena:[
+        'Formaciones rocosas icónicas y buceo pelágico.']},
+      {id:22,name:'Loreto',region:'Pacífico',type:'Parque Marino',difficulty:'Intermedio',best:'Oct-May',lat:26.0112,lng:-111.3439,shortResena:[
+        'Archipiélago protegido con gran biodiversidad marina.']},
+      {id:23,name:'Puerto Vallarta',region:'Pacífico',type:'Arrecife',difficulty:'Principiante-Intermedio',best:'Nov-Jun',lat:20.6534,lng:-105.2253,shortResena:[
+        'Buceo accesible y diversidad de sitios en bahías cercanas.']},
+      {id:24,name:'Islas Marietas',region:'Pacífico',type:'Rocas / Cuevas',difficulty:'Principiante-Intermedio',best:'Nov-May',lat:20.7098,lng:-105.5049,shortResena:[
+        'Formaciones rocosas únicas y biodiversidad marina.']},
+      {id:25,name:'Manzanillo',region:'Pacífico',type:'Naufragios',difficulty:'Intermedio',best:'Nov-May',lat:19.0550,lng:-104.3167,shortResena:[
+        'Naufragios y buen buceo de costa.']},
+      {id:26,name:'Huatulco',region:'Pacífico',type:'Bahías Protegidas',difficulty:'Principiante-Intermedio',best:'Nov-May',lat:15.8470,lng:-96.1350,shortResena:[
+        'Bahías resguardadas y corales blandos.']},
+      {id:27,name:'Zihuatanejo / Ixtapa',region:'Pacífico',type:'Arrecifes',difficulty:'Principiante-Intermedio',best:'Nov-May',lat:17.6400,lng:-101.5480,shortResena:[
+        'Arrecifes tranquilos y buen acceso turístico.']},
+      {id:28,name:'Isla Isabel',region:'Pacífico',type:'Arrecife',difficulty:'Intermedio',best:'Nov-May',lat:21.8810,lng:-105.2210,shortResena:[
+        'Isla volcánica con arrecifes saludables y aves marinas.']},
+      {id:29,name:'Mazatlán',region:'Pacífico',type:'Naufragios',difficulty:'Intermedio',best:'Nov-May',lat:23.2494,lng:-106.4111,shortResena:[
+        'Naufragios y buceo en Pacífico mexicano.']},
+      {id:30,name:'Bahía Magdalena',region:'Pacífico',type:'Ballenas / Observación',difficulty:'Principiante',best:'Feb-Apr',lat:24.5000,lng:-112.0000,shortResena:[
+        'Zona de ballenas grises; buen snorkel y observación marina.']},
+      {id:31,name:'Sistema Arrecifal Veracruzano',region:'Golfo',type:'Arrecife',difficulty:'Intermedio',best:'Nov-May',lat:19.1650,lng:-96.1400,shortResena:[
+        'Arrecifes frente a Veracruz con buena vida marina local.']},
+      {id:32,name:'Isla de Sacrificios (Veracruz)',region:'Golfo',type:'Isla / Arrecife',difficulty:'Intermedio',best:'Nov-May',lat:19.1400,lng:-96.1600,shortResena:[
+        'Accesible desde el puerto de Veracruz; buena biodiversidad marina.']},
+      {id:33,name:'Isla de Enmedio (Veracruz)',region:'Golfo',type:'Isla / Arrecife',difficulty:'Intermedio',best:'Nov-May',lat:18.9000,lng:-95.8000,shortResena:[
+        'Inmersiones costeras tranquilas y pesca local.']},
+      {id:34,name:'Alvarado (Veracruz)',region:'Golfo',type:'Estuario / Arrecife',difficulty:'Principiante-Intermedio',best:'Nov-Jun',lat:18.7460,lng:-95.7990,shortResena:[
+        'Estuarios y bahías; combinación de manglar y arrecifes cercanos.']},
+      {id:35,name:'Boca del Río (Veracruz)',region:'Golfo',type:'Arrecife',difficulty:'Principiante-Intermedio',best:'Nov-May',lat:19.1500,lng:-96.1300,shortResena:[
+        'Sitios de inmersión locales, fácil acceso desde la ciudad.']},
+      {id:36,name:'Coatzacoalcos',region:'Golfo',type:'Arrecife / Costero',difficulty:'Intermedio',best:'Nov-May',lat:18.1470,lng:-94.4280,shortResena:[
+        'Buceo en la costa sur de Veracruz; plataforma continental y fauna.']},
+      {id:37,name:'Sistema Arrecifal La Antigua',region:'Golfo',type:'Arrecife',difficulty:'Intermedio',best:'Nov-May',lat:19.3000,lng:-96.5000,shortResena:[
+        'Arrecifes y bancos frente a La Antigua; buena biodiversidad.']},
+
+      // +30 sitios nuevos (Golfo, Sur, Norte, interior con acceso al mar y otros estados)
+      {id:38,name:'Tampico (Tamaulipas)',region:'Golfo',type:'Costero / Plataformas',difficulty:'Intermedio',best:'Nov-May',lat:22.2333,lng:-97.8667,shortResena:[
+        'Costa en el sur de Tamaulipas con inmersiones cerca de plataformas y arrecifes costeros.']},
+      {id:39,name:'Playa Miramar (Tamaulipas)',region:'Golfo',type:'Costero',difficulty:'Principiante-Intermedio',best:'Nov-Jun',lat:22.2856,lng:-97.8611,shortResena:[
+        'Playas amplias y puntos de inmersión en la plataforma cercana.']},
+      {id:40,name:'Tecolutla (Veracruz norte)',region:'Golfo',type:'Costero / Arrecife',difficulty:'Principiante-Intermedio',best:'Nov-May',lat:20.5800,lng:-97.2040,shortResena:[
+        'Zona costera norte de Veracruz con inmersiones y vida marina templada.']},
+      {id:41,name:'Nautla (Veracruz)',region:'Golfo',type:'Costero',difficulty:'Principiante',best:'Nov-Jun',lat:20.2250,lng:-96.7380,shortResena:[
+        'Playas y accesos sencillos a inmersiones costeras.']},
+      {id:42,name:'Tabasco (Coatzacoalcos norte)',region:'Golfo',type:'Estuario / Costa',difficulty:'Intermedio',best:'Nov-May',lat:18.2000,lng:-93.3333,shortResena:[
+        'Estuarios y bajíos con vida marina, inmersiones costeras.']},
+      {id:43,name:'Campeche (Banco de Campeche)',region:'Golfo',type:'Pelágicos / Arrecifes',difficulty:'Intermedio-Avanzado',best:'Nov-May',lat:19.8000,lng:-90.5500,shortResena:[
+        'Amplias plataformas e influencia del Banco de Campeche; buena diversidad marina.']},
+      {id:44,name:'Isla Arena (Campeche)',region:'Golfo',type:'Isla / Arrecife',difficulty:'Intermedio',best:'Nov-May',lat:19.3500,lng:-90.9000,shortResena:[
+        'Islas y cayos con arrecifes en la región de Campeche.']},
+      {id:45,name:'Mérida (Yucatán) — acceso a Progreso',region:'Golfo',type:'Costero / Arrecife',difficulty:'Principiante-Intermedio',best:'Nov-May',lat:21.1619,lng:-89.5596,shortResena:[
+        'Desde Mérida se accede a Progreso y sitios costeros para inmersión.']},
+      {id:46,name:'Sisal (Yucatán)',region:'Golfo',type:'Costero',difficulty:'Principiante',best:'Nov-May',lat:21.1966,lng:-89.7166,shortResena:[
+        'Pequeños arrecifes y buen punto para combinar con turismo cultural.']},
+      {id:47,name:'Puerto Chiapas (Chiapas)',region:'Pacífico',type:'Costero / Arrecife',difficulty:'Intermedio',best:'Nov-May',lat:14.6510,lng:-92.0390,shortResena:[
+        'Boca del Golfo de Tehuantepec; inmersiones costeras y vida tropical.']},
+      {id:48,name:'Puerto Madero (Oaxaca)',region:'Pacífico',type:'Costero',difficulty:'Intermedio',best:'Nov-May',lat:15.6780,lng:-96.4620,shortResena:[
+        'Sitios poco masificados en la costa oaxaqueña con buena vida marina.']},
+      {id:49,name:'Salina Cruz (Oaxaca)',region:'Pacífico',type:'Portuario / Arrecife',difficulty:'Intermedio-Avanzado',best:'Nov-May',lat:16.2300,lng:-95.2000,shortResena:[
+        'Zona de mezcla de corrientes; inmersiones técnicas y pelágicos.']},
+      {id:50,name:'San Carlos (Sonora)',region:'Pacífico',type:'Rocas / Arrecifes',difficulty:'Intermedio',best:'Nov-Apr',lat:27.9742,lng:-111.0483,shortResena:[
+        'Costa del Mar de Cortés con buena visibilidad y rocas submarinas.']},
+      {id:51,name:'Puerto Peñasco (Sonora)',region:'Golfo',type:'Costero / Arrecife',difficulty:'Principiante-Intermedio',best:'Nov-May',lat:31.3016,lng:-113.5466,shortResena:[
+        'Sitios de inmersión en el Alto Golfo de California; opciones para principiantes.']},
+      {id:52,name:'Hermosillo (cercanías)',region:'Pacífico',type:'Accesos costeros',difficulty:'Intermedio',best:'Nov-May',lat:29.0729,lng:-110.9559,shortResena:[
+        'Hermosillo ofrece acceso a la costa sonorense y pequeñas inmersiones cercanas.']},
+      {id:53,name:'San Luis Potosí (cenotes cercanos)',region:'Interior',type:'Cenotes',difficulty:'Caverna',best:'Ene-Dic',lat:22.1559,lng:-100.9855,shortResena:[
+        'Cenotes accesibles en la ruta hacia la huasteca; buceo en agua dulce.']},
+      {id:54,name:'Tuxpan (Veracruz norte)',region:'Golfo',type:'Portuario / Costero',difficulty:'Principiante-Intermedio',best:'Nov-May',lat:20.9620,lng:-97.4048,shortResena:[
+        'Zona portuaria con accesos a inmersiones costeras y manglares.']},
+      {id:55,name:'Cerro Azul (Veracruz)',region:'Golfo',type:'Costero',difficulty:'Principiante',best:'Nov-Jun',lat:20.4500,lng:-97.4460,shortResena:[
+        'Playas y puntos costeros en la zona norte de Veracruz.']},
+      {id:56,name:'Somos (Tabasco - costa)',region:'Golfo',type:'Estuario',difficulty:'Intermedio',best:'Nov-May',lat:17.9000,lng:-92.6000,shortResena:[
+        'Estuarios y manglares con inmersiones de interés ecológico.']},
+      {id:57,name:'Palizada (Campeche)',region:'Golfo',type:'Río/Estuario',difficulty:'Principiante-Intermedio',best:'Nov-May',lat:18.3167,lng:-91.4833,shortResena:[
+        'Ríos y canales con vida de agua dulce; combinaciones con mar cercano.']},
+      {id:58,name:'Isla del Carmen (Campeche)',region:'Golfo',type:'Arrecife / Costero',difficulty:'Intermedio',best:'Nov-May',lat:18.6333,lng:-91.8333,shortResena:[
+        'Arrecifes y sitios pesqueros con biodiversidad típica del Golfo.']},
+      {id:59,name:'Progreso (Yucatán)',region:'Golfo',type:'Costero',difficulty:'Principiante',best:'Nov-May',lat:21.2969,lng:-89.6570,shortResena:[
+        'Puerto turístico con inmersiones y arrecifes accesibles.']},
+      {id:60,name:'Celestún (Yucatán)',region:'Golfo',type:'Costero / Reserva',difficulty:'Principiante',best:'Nov-May',lat:20.8778,lng:-90.4028,shortResena:[
+        'Reserva natural con fauna costera y puntos tranquilos para inmersiones.']},
+      {id:61,name:'Fraccionamiento Boca del Cielo (Chiapas)',region:'Pacífico',type:'Costero',difficulty:'Principiante-Intermedio',best:'Nov-May',lat:15.6960,lng:-93.4410,shortResena:[
+        'Playas y entradas protegidas del Pacífico sur; inmersiones locales.']},
+      {id:62,name:'Puerto Escondido (Oaxaca)',region:'Pacífico',type:'Arrecifes y Rock Formations',difficulty:'Intermedio',best:'Nov-May',lat:15.8700,lng:-97.0990,shortResena:[
+        'Conocido por surf pero también ofrece sitios interesantes para buceo.']},
+      {id:63,name:'Santa Rosalía (Baja California Sur)',region:'Pacífico',type:'Costero / Arrecifes',difficulty:'Intermedio',best:'Nov-May',lat:27.3420,lng:-112.2680,shortResena:[
+        'Sitios menos concurridos en la península con buena vida marina.']},
+      {id:64,name:'San Felipe (Baja California)',region:'Golfo',type:'Costero',difficulty:'Principiante-Intermedio',best:'Nov-May',lat:31.0213,lng:-114.8366,shortResena:[
+        'Bahías y accesos al Mar de Cortés con inmersiones costeras.']},
+      {id:65,name:'Punta Chueca (Sonora)',region:'Golfo',type:'Rocas / Costero',difficulty:'Intermedio',best:'Nov-Apr',lat:30.7860,lng:-113.6820,shortResena:[
+        'Sitios remotos y menos masificados en la costa sonorense.']},
+      {id:66,name:'Topolobampo (Sinaloa)',region:'Pacífico',type:'Naufragios / Costero',difficulty:'Intermedio',best:'Nov-May',lat:25.6850,lng:-109.0800,shortResena:[
+        'Puertos y naufragios con inmersiones variadas en Sinaloa.']},
+      {id:67,name:'Altata (Sinaloa)',region:'Pacífico',type:'Costero / Islas',difficulty:'Principiante-Intermedio',best:'Nov-May',lat:24.2744,lng:-106.4639,shortResena:[
+        'Islas cercanas y sitios costeros con buena visibilidad.']}
+    ];
+
+    // Initialize map (center of Mexico)
+    const map = L.map('map', { zoomControl:true, preferCanvas:true }).setView([23.6345, -102.5528], 5);
+
+    // Tiles
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 18,
+      attribution: '© OpenStreetMap contributors'
+    }).addTo(map);
+
+    // Marker storage and list builder
+    const markers = [];
+    const listEl = document.getElementById('list');
+
+    SITES.forEach(site => {
+      // marker with small custom icon color (circle style using DivIcon)
+      const iconHtml = `<svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="${'#FF0000'}" stroke="#fff" stroke-width="2"/></svg>`;
+      const icon = L.divIcon({ html: iconHtml, className: '', iconSize: [26,26], iconAnchor: [13,13] });
+
+      const marker = L.marker([site.lat, site.lng], {icon: icon}).addTo(map);
+
+      // build popup using shortResena array as bullets
+      const bullets = site.shortResena.map(s=>`<li>${s}</li>`).join('');
+      const popupHtml = `
+        <div class="popup-card" role="dialog" aria-label="${site.name} ficha">
+          <strong style="font-size:15px;color:${'#FF0000'}">${site.name}</strong>
+          <div class="meta-small">${site.region} • ${site.type}</div>
+          <div class="meta-small">Dificultad: ${site.difficulty} • Mejores: ${site.best}</div>
+          <div style="margin-top:8px;" class="mini-resena"><ul style="padding-left:18px;margin:6px 0;">${bullets}</ul></div>
+        </div>
+      `;
+      marker.bindPopup(popupHtml, {maxWidth:380});
+      markers.push({marker,site});
+
+      // list item shows small text summary (first two bullet lines)
+      const item = document.createElement('div');
+      item.className = 'site-item';
+      item.tabIndex = 0;
+      const summary = site.shortResena.slice(0,2).map(r=>`<div class="thumb">${r}</div>`).join('');
+      item.innerHTML = `<strong style="color:${'#FF0000'}">${site.name}</strong><div class="meta-small">${site.region} • ${site.type}</div>${summary}`;
+      item.addEventListener('click', () => {
+        map.setView([site.lat, site.lng], 9, {animate:true});
+        marker.openPopup();
+      });
+      item.addEventListener('keypress', (e) => { if(e.key==='Enter') item.click(); });
+      item.dataset.region = site.region;
+      item.dataset.name = site.name.toLowerCase();
+      item.dataset.type = site.type.toLowerCase();
+      listEl.appendChild(item);
+    });
+
+    // Fit map to markers
+    const markerGroup = L.featureGroup(markers.map(m=>m.marker));
+    if (markers.length === 1) map.setView(markers[0].marker.getLatLng(), 8);
+    else map.fitBounds(markerGroup.getBounds().pad(0.18));
+
+    // Filters (region)
+    document.querySelectorAll('.btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.btn').forEach(b=>b.classList.remove('active'));
+        btn.classList.add('active');
+        const f = btn.dataset.filter;
+        document.querySelectorAll('.site-item').forEach(i => {
+          if (f === 'all') i.style.display = 'block';
+          else i.style.display = (i.dataset.region === f) ? 'block' : 'none';
+        });
+      });
+    });
+
+    // Search
+    document.getElementById('search').addEventListener('input', e => {
+      const q = e.target.value.trim().toLowerCase();
+      document.querySelectorAll('.site-item').forEach(i => {
+        const matches = i.dataset.name.includes(q) || i.dataset.type.includes(q);
+        i.style.display = (q === '' || matches) ? 'block' : 'none';
+      });
+    });
+
+    // Disable scroll zoom for embed friendliness; enable with Ctrl+wheel
+    map.scrollWheelZoom.disable();
+    map.getContainer().addEventListener('wheel', function(e){
+      if (e.ctrlKey) map.scrollWheelZoom.enable();
+    });
+
+    // Ensure correct rendering in iframes/Canva
+    function ensureMapRenders(){
+      setTimeout(()=>{ try{ map.invalidateSize(); } catch(e){} }, 200);
+      setTimeout(()=>{ try{ map.invalidateSize(); } catch(e){} }, 800);
+      setTimeout(()=>{ try{ map.invalidateSize(); } catch(e){} }, 1400);
+    }
+    window.addEventListener('load', ensureMapRenders);
+    window.addEventListener('orientationchange', ensureMapRenders);
+    setTimeout(ensureMapRenders, 1200);
+  </script>
+</body>
+</html>
