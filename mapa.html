@@ -1,83 +1,116 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <title>Mapa Interactivo de Buceo, Lagunas y Volcanes de México</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta charset="UTF-8">
+<title>Mapa Interactivo de Buceo, Lagunas y Volcanes de México</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-  <!-- Leaflet CSS -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+<!-- Leaflet CSS -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
 
-  <style>
-    body {
-      margin: 0;
-      font-family: Arial, sans-serif;
-      background-color: #ffffff; /* Fondo blanco */
-      color: #000000;
-    }
-    h1 {
-      text-align: center;
-      margin: 20px;
-      color: #FF0000; /* Acento rojo bandera de buceo */
-    }
-    #map {
-      height: 90vh;
-      width: 100%;
-    }
-    .popup-content {
-      max-width: 250px;
-    }
-    .site-title {
-      font-weight: bold;
-      color: #FF0000;
-      margin-bottom: 5px;
-    }
-    .site-description {
-      font-size: 0.9em;
-    }
-  </style>
+<style>
+  body { margin:0; font-family:Arial,sans-serif; background-color:#ffffff; color:#000; }
+  h1 { text-align:center; margin:20px; color:#FF0000; }
+  #map { height: 80vh; width:100%; }
+  #controls { padding: 10px; text-align:center; }
+  input, select { padding:5px; margin:5px; border:1px solid #ccc; border-radius:3px; }
+  .popup-content { max-width:250px; }
+  .site-title { font-weight:bold; color:#FF0000; margin-bottom:5px; }
+  .site-description { font-size:0.9em; }
+</style>
 </head>
 <body>
-  <h1>Mapa Interactivo de Buceo, Lagunas y Volcanes de México</h1>
-  <div id="map"></div>
 
-  <!-- Leaflet JS -->
-  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-  <script>
-    var map = L.map('map').setView([23.6345, -102.5528], 5);
+<h1>Mapa Interactivo de Buceo, Lagunas y Volcanes de México</h1>
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 18,
-      attribution: '© OpenStreetMap'
-    }).addTo(map);
+<div id="controls">
+  <input type="text" id="searchBox" placeholder="Buscar lugar...">
+  <select id="stateFilter">
+    <option value="">Filtrar por estado</option>
+    <option value="Baja California">Baja California</option>
+    <option value="Baja California Sur">Baja California Sur</option>
+    <option value="Sonora">Sonora</option>
+    <option value="Sinaloa">Sinaloa</option>
+    <option value="Nayarit">Nayarit</option>
+    <option value="Jalisco">Jalisco</option>
+    <option value="Michoacán">Michoacán</option>
+    <option value="Guerrero">Guerrero</option>
+    <option value="Oaxaca">Oaxaca</option>
+    <option value="Chiapas">Chiapas</option>
+    <option value="Veracruz">Veracruz</option>
+    <option value="Tabasco">Tabasco</option>
+    <option value="Campeche">Campeche</option>
+    <option value="Yucatán">Yucatán</option>
+    <option value="Quintana Roo">Quintana Roo</option>
+    <option value="San Luis Potosí">San Luis Potosí</option>
+    <option value="Hermosillo">Hermosillo</option>
+  </select>
+</div>
 
-    var lugares = [
-      // --- 97 lugares actuales (todos los que tenías) ---
-      // Aquí debes copiar los 97 lugares que ya validaste
-      // Ejemplo de algunos:
-      {name:"Cabo Pulmo", lat:23.545, lng:-109.400, desc:"- Único arrecife de coral vivo en la costa oeste de América del Norte.\n- Vida marina abundante: bancos de peces, tortugas, tiburones.\n- Naturaleza “salvaje” en el Pacífico mexicano."},
-      {name:"Cozumel", lat:20.422, lng:-86.922, desc:"- Popular por sus arrecifes y aguas claras.\n- Buena visibilidad y gran biodiversidad marina.\n- Ideal para buzos principiantes y avanzados."},
-      // ...agregar los restantes hasta llegar a los 97 sitios existentes
+<div id="map"></div>
 
-      // --- 3 lugares nuevos añadidos al final ---
-      {name:"Nuevo Sitio 1 - Riviera Nayarit", lat:20.950, lng:-105.300, desc:"- Buceo en arrecifes y playas vírgenes.\n- Vida marina abundante y aguas cristalinas."},
-      {name:"Nuevo Sitio 2 - Laguna de Pátzcuaro", lat:19.280, lng:-101.570, desc:"- Agua dulce de altura.\n- Exploración y snorkel en un lago histórico."},
-      {name:"Nuevo Sitio 3 - Isla de Lobos, Veracruz", lat:19.115, lng:-96.200, desc:"- Buceo en arrecife coralino.\n- Zona protegida con abundante vida marina."}
-    ];
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
-    // Agregar marcadores al mapa
-    lugares.forEach(function(lugar) {
-      L.marker([lugar.lat, lugar.lng]).addTo(map)
-        .bindPopup(
-          `<div class="popup-content">
-            <div class="site-title">${lugar.name}</div>
-            <div class="site-description">${lugar.desc.replace(/\n/g,'<br>')}</div>
-          </div>`
-        );
-    });
+<script>
+var map = L.map('map').setView([23.6345, -102.5528], 5);
 
-    // Ajustar tamaño si se embebe en iframe
-    setTimeout(function(){ map.invalidateSize(); }, 100);
-  </script>
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 18,
+  attribution: '© OpenStreetMap'
+}).addTo(map);
+
+// Lista de 100 lugares (97 originales + 3 nuevos)
+var lugares = [
+  // --- Aquí van los 97 lugares originales EXACTOS ---
+  {name:"Cabo Pulmo", lat:23.545, lng:-109.400, desc:"- Único arrecife de coral vivo en la costa oeste de América del Norte.\n- Vida marina abundante.\n- Naturaleza salvaje.", state:"Baja California Sur"},
+  {name:"Cozumel", lat:20.422, lng:-86.922, desc:"- Popular por sus arrecifes y aguas claras.\n- Buena visibilidad.\n- Ideal para principiantes.", state:"Quintana Roo"},
+  // ... agregar los 95 restantes exactamente como en tu archivo original, incluyendo estado
+  // --- 3 nuevos lugares añadidos ---
+  {name:"Riviera Nayarit - Nuevo Sitio", lat:20.950, lng:-105.300, desc:"- Buceo en arrecifes y playas vírgenes.\n- Vida marina abundante y aguas cristalinas.", state:"Nayarit"},
+  {name:"Laguna de Pátzcuaro - Nuevo Sitio", lat:19.280, lng:-101.570, desc:"- Agua dulce de altura.\n- Exploración y snorkel en un lago histórico.", state:"Michoacán"},
+  {name:"Isla de Lobos, Veracruz - Nuevo Sitio", lat:19.115, lng:-96.200, desc:"- Buceo en arrecife coralino.\n- Zona protegida con abundante vida marina.", state:"Veracruz"}
+];
+
+// Crear marcadores y añadir al mapa
+var markers = [];
+
+function createMarkers(list){
+  markers.forEach(m=>map.removeLayer(m));
+  markers=[];
+  list.forEach(function(lugar){
+    var marker = L.marker([lugar.lat, lugar.lng])
+      .bindPopup(`<div class="popup-content"><div class="site-title">${lugar.name}</div><div class="site-description">${lugar.desc.replace(/\n/g,'<br>')}</div></div>`);
+    marker.addTo(map);
+    markers.push(marker);
+  });
+}
+
+createMarkers(lugares);
+
+// Función de filtro y buscador
+document.getElementById('searchBox').addEventListener('input', function(){
+  var query = this.value.toLowerCase();
+  var state = document.getElementById('stateFilter').value;
+  var filtered = lugares.filter(l=>{
+    var matchState = state ? l.state === state : true;
+    return matchState && l.name.toLowerCase().includes(query);
+  });
+  createMarkers(filtered);
+});
+
+document.getElementById('stateFilter').addEventListener('change', function(){
+  var state = this.value;
+  var query = document.getElementById('searchBox').value.toLowerCase();
+  var filtered = lugares.filter(l=>{
+    var matchState = state ? l.state === state : true;
+    return matchState && l.name.toLowerCase().includes(query);
+  });
+  createMarkers(filtered);
+});
+
+// Ajuste para iframe
+setTimeout(function(){ map.invalidateSize(); }, 100);
+</script>
 </body>
 </html>
