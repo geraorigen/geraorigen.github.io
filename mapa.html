@@ -1,116 +1,126 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8">
-<title>Mapa Interactivo de Buceo, Lagunas y Volcanes de México</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-<!-- Leaflet CSS -->
-<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-
-<style>
-  body { margin:0; font-family:Arial,sans-serif; background-color:#ffffff; color:#000; }
-  h1 { text-align:center; margin:20px; color:#FF0000; }
-  #map { height: 80vh; width:100%; }
-  #controls { padding: 10px; text-align:center; }
-  input, select { padding:5px; margin:5px; border:1px solid #ccc; border-radius:3px; }
-  .popup-content { max-width:250px; }
-  .site-title { font-weight:bold; color:#FF0000; margin-bottom:5px; }
-  .site-description { font-size:0.9em; }
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mapa de Buceo, Lagunas y Volcanes de México</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      display: flex;
+      height: 100vh;
+      background-color: white;
+    }
+    #sidebar {
+      width: 300px;
+      padding: 10px;
+      background-color: white;
+      border-right: 2px solid red;
+      overflow-y: auto;
+    }
+    #map {
+      flex-grow: 1;
+    }
+    h1 {
+      text-align: center;
+      color: red;
+      font-size: 18px;
+      margin-bottom: 10px;
+    }
+    input, select {
+      width: 100%;
+      padding: 5px;
+      margin-bottom: 10px;
+      border: 1px solid #ccc;
+      border-radius: 3px;
+    }
+    .site-item {
+      padding: 5px;
+      margin-bottom: 5px;
+      cursor: pointer;
+      border: 1px solid #ccc;
+      border-radius: 3px;
+    }
+    .site-item:hover {
+      background-color: #f0f0f0;
+    }
+    .popup-content {
+      max-width: 250px;
+    }
+    .site-title {
+      font-weight: bold;
+      color: red;
+    }
+  </style>
 </head>
 <body>
 
-<h1>Mapa Interactivo de Buceo, Lagunas y Volcanes de México</h1>
+  <div id="sidebar">
+    <h1>Lugares de Buceo</h1>
+    <input type="text" id="searchBox" placeholder="Buscar lugar...">
+    <select id="stateFilter">
+      <option value="">Filtrar por estado</option>
+      <option value="Baja California">Baja California</option>
+      <option value="Baja California Sur">Baja California Sur</option>
+      <option value="Sonora">Sonora</option>
+      <option value="Sinaloa">Sinaloa</option>
+      <option value="Nayarit">Nayarit</option>
+      <option value="Jalisco">Jalisco</option>
+      <option value="Michoacán">Michoacán</option>
+      <option value="Guerrero">Guerrero</option>
+      <option value="Oaxaca">Oaxaca</option>
+      <option value="Chiapas">Chiapas</option>
+      <option value="Veracruz">Veracruz</option>
+      <option value="Tabasco">Tabasco</option>
+      <option value="Campeche">Campeche</option>
+      <option value="Yucatán">Yucatán</option>
+      <option value="Quintana Roo">Quintana Roo</option>
+      <option value="San Luis Potosí">San Luis Potosí</option>
+    </select>
+    <div id="placesList"></div>
+  </div>
 
-<div id="controls">
-  <input type="text" id="searchBox" placeholder="Buscar lugar...">
-  <select id="stateFilter">
-    <option value="">Filtrar por estado</option>
-    <option value="Baja California">Baja California</option>
-    <option value="Baja California Sur">Baja California Sur</option>
-    <option value="Sonora">Sonora</option>
-    <option value="Sinaloa">Sinaloa</option>
-    <option value="Nayarit">Nayarit</option>
-    <option value="Jalisco">Jalisco</option>
-    <option value="Michoacán">Michoacán</option>
-    <option value="Guerrero">Guerrero</option>
-    <option value="Oaxaca">Oaxaca</option>
-    <option value="Chiapas">Chiapas</option>
-    <option value="Veracruz">Veracruz</option>
-    <option value="Tabasco">Tabasco</option>
-    <option value="Campeche">Campeche</option>
-    <option value="Yucatán">Yucatán</option>
-    <option value="Quintana Roo">Quintana Roo</option>
-    <option value="San Luis Potosí">San Luis Potosí</option>
-    <option value="Hermosillo">Hermosillo</option>
-  </select>
-</div>
+  <div id="map"></div>
 
-<div id="map"></div>
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script>
+    var map = L.map('map').setView([23.6345, -102.5528], 5);
 
-<!-- Leaflet JS -->
-<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 18,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    }).addTo(map);
 
-<script>
-var map = L.map('map').setView([23.6345, -102.5528], 5);
-
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  maxZoom: 18,
-  attribution: '© OpenStreetMap'
-}).addTo(map);
-
-// Lista de 100 lugares (97 originales + 3 nuevos)
-var lugares = [
-  // --- Aquí van los 97 lugares originales EXACTOS ---
-  {name:"Cabo Pulmo", lat:23.545, lng:-109.400, desc:"- Único arrecife de coral vivo en la costa oeste de América del Norte.\n- Vida marina abundante.\n- Naturaleza salvaje.", state:"Baja California Sur"},
-  {name:"Cozumel", lat:20.422, lng:-86.922, desc:"- Popular por sus arrecifes y aguas claras.\n- Buena visibilidad.\n- Ideal para principiantes.", state:"Quintana Roo"},
-  // ... agregar los 95 restantes exactamente como en tu archivo original, incluyendo estado
-  // --- 3 nuevos lugares añadidos ---
-  {name:"Riviera Nayarit - Nuevo Sitio", lat:20.950, lng:-105.300, desc:"- Buceo en arrecifes y playas vírgenes.\n- Vida marina abundante y aguas cristalinas.", state:"Nayarit"},
-  {name:"Laguna de Pátzcuaro - Nuevo Sitio", lat:19.280, lng:-101.570, desc:"- Agua dulce de altura.\n- Exploración y snorkel en un lago histórico.", state:"Michoacán"},
-  {name:"Isla de Lobos, Veracruz - Nuevo Sitio", lat:19.115, lng:-96.200, desc:"- Buceo en arrecife coralino.\n- Zona protegida con abundante vida marina.", state:"Veracruz"}
-];
-
-// Crear marcadores y añadir al mapa
-var markers = [];
-
-function createMarkers(list){
-  markers.forEach(m=>map.removeLayer(m));
-  markers=[];
-  list.forEach(function(lugar){
-    var marker = L.marker([lugar.lat, lugar.lng])
-      .bindPopup(`<div class="popup-content"><div class="site-title">${lugar.name}</div><div class="site-description">${lugar.desc.replace(/\n/g,'<br>')}</div></div>`);
-    marker.addTo(map);
-    markers.push(marker);
-  });
-}
-
-createMarkers(lugares);
-
-// Función de filtro y buscador
-document.getElementById('searchBox').addEventListener('input', function(){
-  var query = this.value.toLowerCase();
-  var state = document.getElementById('stateFilter').value;
-  var filtered = lugares.filter(l=>{
-    var matchState = state ? l.state === state : true;
-    return matchState && l.name.toLowerCase().includes(query);
-  });
-  createMarkers(filtered);
-});
-
-document.getElementById('stateFilter').addEventListener('change', function(){
-  var state = this.value;
-  var query = document.getElementById('searchBox').value.toLowerCase();
-  var filtered = lugares.filter(l=>{
-    var matchState = state ? l.state === state : true;
-    return matchState && l.name.toLowerCase().includes(query);
-  });
-  createMarkers(filtered);
-});
-
-// Ajuste para iframe
-setTimeout(function(){ map.invalidateSize(); }, 100);
-</script>
-</body>
-</html>
+    var lugares = [
+      {name: "Cabo Pulmo", lat: 23.545, lng: -109.400, desc: "Arrecife de coral único en la costa oeste de América del Norte.", state: "Baja California Sur"},
+      {name: "Cozumel", lat: 20.422, lng: -86.922, desc: "Famoso por sus arrecifes y aguas cristalinas.", state: "Quintana Roo"},
+      {name: "Isla de Guadalupe", lat: 30.000, lng: -118.000, desc: "Conocida por el buceo con tiburones blancos.", state: "Baja California"},
+      {name: "Bahía de los Ángeles", lat: 28.000, lng: -113.000, desc: "Ideal para buceo con tiburones ballena y leones marinos.", state: "Baja California"},
+      {name: "La Paz", lat: 24.142, lng: -110.312, desc: "Ofrece buceo en el Mar de Cortés, conocido como el acuario del mundo.", state: "Baja California Sur"},
+      {name: "Islas Marietas", lat: 20.683, lng: -105.583, desc: "Famosas por su biodiversidad marina y la Playa del Amor.", state: "Nayarit"},
+      {name: "Cenote Dos Ojos", lat: 20.566, lng: -87.383, desc: "Sistema de cavernas subacuáticas con aguas cristalinas.", state: "Quintana Roo"},
+      {name: "Cenote Angelita", lat: 20.100, lng: -87.400, desc: "Conocido por su capa de sulfuro que crea un efecto visual único.", state: "Quintana Roo"},
+      {name: "Cenote Calavera", lat: 20.500, lng: -87.400, desc: "Llamado así por su forma que recuerda a una calavera humana.", state: "Quintana Roo"},
+      {name: "Isla Mujeres", lat: 21.200, lng: -86.700, desc: "Ofrece buceo en arrecifes y la famosa Cueva de los Tiburones Dormidos.", state: "Quintana Roo"},
+      {name: "Puerto Morelos", lat: 20.850, lng: -86.883, desc: "Parte del Sistema Arrecifal Mesoamericano, ideal para buceo y snorkel.", state: "Quintana Roo"},
+      {name: "Akumal", lat: 20.516, lng: -87.283, desc: "Conocida por sus tortugas marinas y aguas tranquilas.", state: "Quintana Roo"},
+      {name: "Tulum", lat: 20.211, lng: -87.465, desc: "Famosa por sus ruinas mayas y cenotes para buceo.", state: "Quintana Roo"},
+      {name: "Playa del Carmen", lat: 20.629, lng: -87.073, desc: "Ofrece acceso a cenotes y arrecifes cercanos.", state: "Quintana Roo"},
+      {name: "Cabo San Lucas", lat: 22.890, lng: -109.916, desc: "Conocido por sus formaciones rocosas y vida marina diversa.", state: "Baja California Sur"},
+      {name: "La Paz", lat: 24.142, lng: -110.312, desc: "Ofrece buceo en el Mar de Cortés, conocido como el acuario del mundo.", state: "Baja California Sur"},
+      {name: "Isla Espíritu Santo", lat: 24.500, lng: -110.500, desc: "Área protegida con aguas claras y vida marina abundante.", state: "Baja California Sur"},
+      {name: "Isla San Francisco", lat: 26.000, lng: -111.000, desc: "Conocida por sus aguas turquesas y formaciones rocosas.", state: "Baja California Sur"},
+      {name: "Isla San Benedicto", lat: 18.000, lng: -114.000, desc: "Parte del Archipiélago de Revillagigedo, ideal para buceo con mantarrayas y tiburones.", state: "Colima"},
+      {name: "Isla Socorro", lat: 18.700, lng: -111.000, desc: "Famosa por encuentros con mantarrayas, tiburones y delfines.", state: "Colima"},
+      {name: "Roca Partida", lat: 18.800, lng: -110.900, desc: "Conocida por su biodiversidad marina y formaciones rocosas.", state: "Colima"},
+      {name: "Isla Clarión", lat: 19.000, lng: -109.000, desc: "Parte del Archipiélago de Revillagigedo, ideal para buceo avanzado.", state: "Colima"},
+      {name: "Isla Isabel", lat: 21.000, lng: -105.000, desc: "Conocida por su colonia de piqueros de patas azules y vida marina diversa.", state: "Nayarit"},
+      {name: "Bahía de Banderas", lat: 20.750, lng: -105.250, desc: "Ideal para buceo con mantarrayas y delfines.", state: "Nayarit"},
+      {name: "Marietas", lat: 20.683, lng: -105.583, desc: "Famosas por su biodiversidad marina y la Playa del Amor.", state: "Nayarit"},
+      {name: "Isla Cerralvo", lat: 24.000, lng: -109.000, desc: "Conocida por sus aguas claras y vida marina abundante.", state: "Baja California Sur"},
+      {name: "Isla Danzante", lat: 25.000, lng: -109.000, desc: "Ideal para buceo con leones marinos y tiburones.", state: "Baja California Sur"},
+      {name: "Isla Coronado", lat: 28.000, lng: -113.000, desc: "Conocida por sus aguas turquesas y vida marina diversa.",
+::contentReference[oaicite:0]{index=0}
+ 
